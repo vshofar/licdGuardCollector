@@ -2,8 +2,8 @@ import os
 import pandas as pd
 import logging
 from tqdm import tqdm
-from src.db import Neo4jConnector
-from src.config import DATA_DIR, BATCH_SIZE
+from ingestion.db import Neo4jConnector
+from ingestion.config import DATA_DIR, BATCH_SIZE
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 

@@ -1,4 +1,4 @@
-from src.db import Neo4jConnector
+from ingestion.db import Neo4jConnector
 
 if __name__ == "__main__":
     print("Iniciando teste de conexão e criação de restrições...")

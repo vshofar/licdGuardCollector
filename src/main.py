@@ -1,5 +1,5 @@
-from src.db import Neo4jConnector
-from src.pipeline import ETLPipeline
+from ingestion.db import Neo4jConnector
+from ingestion.pipeline import ETLPipeline
 
 if __name__ == "__main__":
     # 1. Valida/cria as restrições de unicidade

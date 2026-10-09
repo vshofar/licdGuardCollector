@@ -1,12 +1,14 @@
 from neo4j import GraphDatabase
 import logging
-from src.config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from ingestion.config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 class Neo4jConnector:
     def __init__(self):
+        logging.info(f"Conectando ao Neo4j - URI: {NEO4J_URI}, User: {NEO4J_USER}")
         self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+        logging.info("Conexão com Neo4j estabelecida com sucesso!")
 
     def close(self):
         self.driver.close()
