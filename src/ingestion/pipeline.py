@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 class ETLPipeline:
     def __init__(self):
         self.db = Neo4jConnector()
+        self.db.setup_constraints()
 
     def close(self):
         self.db.close()
@@ -122,3 +123,11 @@ class ETLPipeline:
         self.load_sancoes("CEIS.csv", "CEIS")
         self.load_sancoes("CNEP.csv", "CNEP")
         logging.info("ETL concluído com sucesso!")
+
+
+if __name__ == "__main__":
+    pipeline = ETLPipeline()
+    try:
+        pipeline.run_all()
+    finally:
+        pipeline.close()
