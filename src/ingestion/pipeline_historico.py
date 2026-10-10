@@ -1,8 +1,9 @@
 import os
 import re
+import time
 import pandas as pd
 import logging
-from tqdm import tqdm
+from neo4j.exceptions import TransientError
 from ingestion.db import Neo4jConnector
 from ingestion.config import BATCH_SIZE
 
@@ -11,72 +12,91 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 HISTORIC_DATA_DIR = "/home/vbatista/estudo/agentes/licdGuard/collect/licitacao"
 
 
-class ETLPipelineHistorico:
-    def __init__(self):
-        self.db = Neo4jConnector()
+class ETLPipelineHistoricoSequencial:
+    def __init__(self, max_retries: int = 5):
+        self.max_retries = max_retries
+        # Setup inicial das constraints em uma conexão temporária
+        db = Neo4jConnector()
+        db.setup_constraints()
+        db.close()
 
-    def close(self):
-        self.db.close()
+    def execute_query_with_retry(self, db: Neo4jConnector, cypher_query: str, parameters: dict):
+        """Executa a query e faz retry automático caso ocorra Deadlock ou erro transitório."""
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                db.execute_query(cypher_query, parameters)
+                return True
+            except TransientError as e:
+                if attempt == self.max_retries:
+                    logging.error(f"Excedido limite de retries ({self.max_retries}) por Deadlock. Erro: {e}")
+                    raise e
+                sleep_time = (2 ** (attempt - 1)) * 0.2
+                logging.warning(
+                    f"Deadlock/TransientError detectado. Tentativa {attempt}/{self.max_retries}. "
+                    f"Aguardando {sleep_time:.2f}s antes de tentar novamente..."
+                )
+                time.sleep(sleep_time)
+            except Exception as e:
+                raise e
 
-    def process_csv_in_chunks(self, filepath: str, cypher_query: str, prepare_batch_fn=None):
-        """Lê um arquivo CSV em chunks e executa a query Cypher em lotes via UNWIND."""
+    def process_csv_in_chunks(self, db: Neo4jConnector, filepath: str, cypher_query: str) -> tuple:
+        """Lê um arquivo CSV em chunks e executa a query Cypher com contadores de registros."""
         if not os.path.exists(filepath):
             logging.warning(f"Arquivo não encontrado: {filepath}. Pulando...")
-            return
+            return 0, 0
 
         logging.info(f"Processando arquivo: {os.path.basename(filepath)}")
 
         encoding = "iso-8859-1"
         try:
             chunks = pd.read_csv(filepath, sep=";", encoding=encoding, chunksize=BATCH_SIZE, dtype=str)
-            first_chunk = next(chunks)
+            _ = next(chunks)
             chunks = pd.read_csv(filepath, sep=";", encoding=encoding, chunksize=BATCH_SIZE, dtype=str)
         except (UnicodeDecodeError, Exception):
             encoding = "utf-8-sig"
             chunks = pd.read_csv(filepath, sep=";", encoding=encoding, chunksize=BATCH_SIZE, dtype=str)
 
-        for chunk in tqdm(chunks, desc=f"Carregando {os.path.basename(filepath)} ({encoding})"):
+        total_registros_arquivo = 0
+        falhas_registros_arquivo = 0
+
+        for chunk in chunks:
             chunk = chunk.fillna("")
             records = chunk.to_dict(orient="records")
+            num_records = len(records)
+            total_registros_arquivo += num_records
 
-            if prepare_batch_fn:
-                records = prepare_batch_fn(records)
+            try:
+                self.execute_query_with_retry(db, cypher_query, {"batch": records})
+            except Exception as e:
+                logging.error(f"Falha ao inserir lote do arquivo {os.path.basename(filepath)}: {e}")
+                falhas_registros_arquivo += num_records
 
-            self.db.execute_query(cypher_query, {"batch": records})
+        return total_registros_arquivo, falhas_registros_arquivo
 
-    def get_periodos_ordenados(self):
-        """Retorna lista de períodos (YYYYMM) ordenados cronologicamente."""
+    def get_arquivos_por_tipo(self):
+        """Retorna dicionário com listas de arquivos separados por tipo em ordem cronológica."""
         csv_files = [f for f in os.listdir(HISTORIC_DATA_DIR) if f.endswith('.csv')]
-        periodos = set()
-        
-        for filename in csv_files:
-            match = re.match(r'^(\d{6})_', filename)
-            if match:
-                periodos.add(match.group(1))
-        
-        return sorted(periodos)
 
-    def get_arquivos_por_periodo(self, periodo: str):
-        """Retorna os arquivos de um período específico, ordenados por tipo."""
-        csv_files = [f for f in os.listdir(HISTORIC_DATA_DIR) if f.endswith('.csv') and f.startswith(periodo)]
-        
-        arquivos_ordenados = []
-        
+        licitacoes = []
+        itens = []
+        participantes = []
+
         for arquivo in sorted(csv_files):
+            caminho_completo = os.path.join(HISTORIC_DATA_DIR, arquivo)
             if re.search(r'_Licitação\.csv$', arquivo) and 'Item' not in arquivo and 'Participantes' not in arquivo:
-                arquivos_ordenados.append(os.path.join(HISTORIC_DATA_DIR, arquivo))
-        
-        for arquivo in sorted(csv_files):
-            if re.search(r'_ItemLicitação\.csv$', arquivo):
-                arquivos_ordenados.append(os.path.join(HISTORIC_DATA_DIR, arquivo))
-        
-        for arquivo in sorted(csv_files):
-            if re.search(r'_ParticipantesLicitação\.csv$', arquivo):
-                arquivos_ordenados.append(os.path.join(HISTORIC_DATA_DIR, arquivo))
-        
-        return arquivos_ordenados
+                licitacoes.append(caminho_completo)
+            elif re.search(r'_ItemLicitação\.csv$', arquivo):
+                itens.append(caminho_completo)
+            elif re.search(r'_ParticipantesLicitação\.csv$', arquivo):
+                participantes.append(caminho_completo)
 
-    def load_licitacoes_periodo(self, filepath: str):
+        return {
+            "licitacao": licitacoes,
+            "item_licitacao": itens,
+            "participante_licitacao": participantes
+        }
+
+    def load_licitacao(self, db: Neo4jConnector, filepath: str) -> tuple:
         query = """
         UNWIND $batch AS row
         MERGE (o:OrgaoPublico {codigo_ug: row['Código UG']})
@@ -91,9 +111,9 @@ class ETLPipelineHistorico:
 
         MERGE (o)-[:REALIZOU]->(l)
         """
-        self.process_csv_in_chunks(filepath, query)
+        return self.process_csv_in_chunks(db, filepath, query)
 
-    def load_itens_periodo(self, filepath: str):
+    def load_item_licitacao(self, db: Neo4jConnector, filepath: str) -> tuple:
         query = """
         UNWIND $batch AS row
         MERGE (i:Item {id_item: row['Número Licitação'] + '_' + row['Código UG'] + '_' + row['Código Item Compra']})
@@ -106,9 +126,9 @@ class ETLPipelineHistorico:
         MATCH (l:Licitacao {id_compra: row['Número Licitação'] + '_' + row['Código UG']})
         MERGE (l)-[:TEM_ITEM]->(i)
         """
-        self.process_csv_in_chunks(filepath, query)
+        return self.process_csv_in_chunks(db, filepath, query)
 
-    def load_participantes_periodo(self, filepath: str):
+    def load_participante_licitacao(self, db: Neo4jConnector, filepath: str) -> tuple:
         query = """
         UNWIND $batch AS row
         MATCH (i:Item {id_item: row['Número Licitação'] + '_' + row['Código UG'] + '_' + row['Código Item Compra']})
@@ -123,53 +143,89 @@ class ETLPipelineHistorico:
         MERGE (e)-[v:VENCEU]->(i)
         ON CREATE SET v.valor_homologado = toFloat(replace(replace(row['Valor Item'], '.', ''), ',', '.'))
         """
-        self.process_csv_in_chunks(filepath, query)
+        return self.process_csv_in_chunks(db, filepath, query)
 
-    def processar_periodo(self, periodo: str):
-        """Processa todos os arquivos de um período na ordem correta."""
-        logging.info(f"=== Processando período {periodo} ===")
-        
-        arquivos = self.get_arquivos_por_periodo(periodo)
-        logging.info(f"Arquivos a processar em ordem: {[os.path.basename(f) for f in arquivos]}")
-        
-        for arquivo in arquivos:
-            nome_arquivo = os.path.basename(arquivo)
-            
-            if re.search(r'_Licitação\.csv$', nome_arquivo) and 'Item' not in nome_arquivo and 'Participantes' not in nome_arquivo:
-                self.load_licitacoes_periodo(arquivo)
-            elif re.search(r'_ItemLicitação\.csv$', nome_arquivo):
-                self.load_itens_periodo(arquivo)
-            elif re.search(r'_ParticipantesLicitação\.csv$', nome_arquivo):
-                self.load_participantes_periodo(arquivo)
-            else:
-                logging.info(f"Pulando arquivo não processado: {nome_arquivo}")
+    def processar_lista_arquivos(self, db: Neo4jConnector, arquivos: list, tipo_nome: str, load_func) -> dict:
+        """Processa sequencialmente uma lista de arquivos de um determinado tipo."""
+        logging.info(
+            f"=== Iniciando processamento sequencial da entidade: {tipo_nome.upper()} ({len(arquivos)} arquivos) ===")
 
-    def run_all(self, periodo_inicio: str = None, periodo_fim: str = None):
-        """Executa a ingestão de todos os períodos ou de um intervalo específico."""
-        logging.info("Iniciando Pipeline de Ingestão Histórica...")
-        
-        periodos = self.get_periodos_ordenados()
-        
-        if periodo_inicio:
-            periodos = [p for p in periodos if p >= periodo_inicio]
-        if periodo_fim:
-            periodos = [p for p in periodos if p <= periodo_fim]
-        
-        logging.info(f"Total de períodos a processar: {len(periodos)}")
-        
-        for periodo in periodos:
+        total_tipo = 0
+        falhas_tipo = 0
+
+        for filepath in arquivos:
             try:
-                self.processar_periodo(periodo)
+                tot, falhas = load_func(db, filepath)
+                total_tipo += tot
+                falhas_tipo += falhas
             except Exception as e:
-                logging.error(f"Erro ao processar período {periodo}: {e}")
-                continue
-        
-        logging.info("Ingestão histórica concluída!")
+                logging.error(f"Erro ao processar o arquivo {os.path.basename(filepath)}: {e}")
+
+        sucessos_tipo = total_tipo - falhas_tipo
+        logging.info(
+            f"=== Concluído tipo {tipo_nome.upper()} | "
+            f"Total lidos: {total_tipo} | "
+            f"Sucessos: {sucessos_tipo} | "
+            f"Falhas: {falhas_tipo} ==="
+        )
+        return {"total": total_tipo, "sucessos": sucessos_tipo, "falhas": falhas_tipo}
+
+    def run_all(self):
+        """Executa a ingestão sequencial estrita: licitacao -> item_licitacao -> participante_licitacao."""
+        logging.info("Iniciando Pipeline de Ingestão Histórica Sequencial por Tipo...")
+
+        arquivos_por_tipo = self.get_arquivos_por_tipo()
+
+        totais_globais = {
+            "total_registros": 0,
+            "total_sucessos": 0,
+            "total_falhas": 0,
+        }
+
+        # Instancia uma única conexão com o banco para todo o ciclo de execução
+        db = Neo4jConnector()
+        try:
+            # 1. Inserir Licitações
+            res_licitacao = self.processar_lista_arquivos(
+                db, arquivos_por_tipo["licitacao"], "licitacao", self.load_licitacao
+            )
+            totais_globais["total_registros"] += res_licitacao["total"]
+            totais_globais["total_sucessos"] += res_licitacao["sucessos"]
+            totais_globais["total_falhas"] += res_licitacao["falhas"]
+
+            # 2. Inserir Itens de Licitação
+            res_item = self.processar_lista_arquivos(
+                db, arquivos_por_tipo["item_licitacao"], "item licitacao", self.load_item_licitacao
+            )
+            totais_globais["total_registros"] += res_item["total"]
+            totais_globais["total_sucessos"] += res_item["sucessos"]
+            totais_globais["total_falhas"] += res_item["falhas"]
+
+            # 3. Inserir Participantes de Licitação
+            res_participante = self.processar_lista_arquivos(
+                db, arquivos_por_tipo["participante_licitacao"], "participante licitacao",
+                self.load_participante_licitacao
+            )
+            totais_globais["total_registros"] += res_participante["total"]
+            totais_globais["total_sucessos"] += res_participante["sucessos"]
+            totais_globais["total_falhas"] += res_participante["falhas"]
+
+        finally:
+            db.close()
+
+        # Relatório Final Consolidado
+        logging.info("==================================================")
+        logging.info("          RELATÓRIO FINAL DE INGESTÃO             ")
+        logging.info("==================================================")
+        logging.info(f"Total de registros lidos      : {totais_globais['total_registros']}")
+        logging.info(f"Total de inserções com SUCESSO : {totais_globais['total_sucessos']}")
+        logging.info(f"Total de inserções NÃO feitas : {totais_globais['total_falhas']}")
+        if totais_globais['total_registros'] > 0:
+            taxa_sucesso = (totais_globais['total_sucessos'] / totais_globais['total_registros']) * 100
+            logging.info(f"Taxa de sucesso               : {taxa_sucesso:.2f}%")
+        logging.info("==================================================")
 
 
 if __name__ == "__main__":
-    pipeline = ETLPipelineHistorico()
-    try:
-        pipeline.run_all("201301", "202412")
-    finally:
-        pipeline.close()
+    pipeline = ETLPipelineHistoricoSequencial(max_retries=5)
+    pipeline.run_all()
