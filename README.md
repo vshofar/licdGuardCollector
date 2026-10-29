@@ -1,12 +1,12 @@
 # licidGuardCollector
 
-Projeto Python para coleta e ingestão de dados de licitações públicas em banco de dados Neo4j. O projeto realiza ETL (Extract, Transform, Load) de arquivos CSV contendo informações sobre licitações, itens, participantes e sanções de empresas.
+Python project for collecting and ingesting public procurement data into a Neo4j database. The project performs ETL (Extract, Transform, Load) of CSV files containing information about procurement processes, items, participants, and company sanctions.
 
-## 📋 Estrutura do Projeto
+## 📋 Project Structure
 
 ```
 licidGuardCollector/
-├── data/                          # Diretório para arquivos CSV de entrada
+├── data/                          # Directory for input CSV files
 │   ├── Licitacao.csv
 │   ├── ItemLicitacao.csv
 │   ├── ParticipantesLicitacao.csv
@@ -14,167 +14,167 @@ licidGuardCollector/
 │   └── CNEP.csv
 ├── src/
 │   └── ingestion/
-│       ├── config.py             # Configurações e variáveis de ambiente
-│       ├── db.py                 # Conector Neo4j e setup de constraints
-│       ├── pipeline.py           # Pipeline ETL para dados atuais
-│       └── pipeline_historico.py # Pipeline ETL para dados históricos
-├── docker-compose.yaml           # Configuração do Neo4j via Docker
-├── requirements.txt              # Dependências Python
-└── .env                          # Variáveis de ambiente (não versionado)
+│       ├── config.py             # Configuration and environment variables
+│       ├── db.py                 # Neo4j connector and constraint setup
+│       ├── pipeline.py           # ETL pipeline for current data
+│       └── pipeline_historico.py # ETL pipeline for historical data
+├── docker-compose.yaml           # Neo4j configuration via Docker
+├── requirements.txt              # Python dependencies
+└── .env                          # Environment variables (not versioned)
 ```
 
-## 🗄️ Modelo de Dados
+## 🗄️ Data Model
 
-O projeto utiliza Neo4j para armazenar dados em formato de grafo com as seguintes entidades:
+The project uses Neo4j to store data in graph format with the following entities:
 
-- **OrgaoPublico**: Órgãos públicos que realizam licitações
-- **Licitacao**: Licitações públicas
-- **Item**: Itens das licitações
-- **Empresa**: Empresas participantes das licitações
-- **Sancao**: Sanções aplicadas a empresas (CEIS e CNEP)
+- **OrgaoPublico**: Public agencies that conduct procurement processes
+- **Licitacao**: Public procurement processes
+- **Item**: Procurement items
+- **Empresa**: Companies participating in procurement processes
+- **Sancao**: Sanctions applied to companies (CEIS and CNEP)
 
-**Relacionamentos**:
+**Relationships**:
 - `OrgaoPublico -[:REALIZOU]-> Licitacao`
 - `Licitacao -[:TEM_ITEM]-> Item`
 - `Empresa -[:PARTICIPOU]-> Item`
 - `Empresa -[:VENCEU]-> Item`
 - `Empresa -[:SOFREU_SANCAO]-> Sancao`
 
-## 🚀 Instalação
+## 🚀 Installation
 
-### Pré-requisitos
+### Prerequisites
 
-- Docker e Docker Compose
+- Docker and Docker Compose
 - Python 3.9+
 - pip
 
-### Passos
+### Steps
 
-1. Clone o repositório:
+1. Clone the repository:
 ```bash
 git clone <repository-url>
 cd licidGuardCollector
 ```
 
-2. Instale as dependências Python:
+2. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Configure as variáveis de ambiente:
+3. Configure environment variables:
 ```bash
 cp .env.example .env
-# Edite o arquivo .env com suas configurações
+# Edit the .env file with your settings
 ```
 
-4. Inicie o Neo4j com Docker Compose:
+4. Start Neo4j with Docker Compose:
 ```bash
 docker-compose up -d
 ```
 
-5. Acesse o Neo4j Browser em `http://localhost:7474` (usuário: `neo4j`, senha: `password`)
+5. Access Neo4j Browser at `http://localhost:7474` (username: `neo4j`, password: `password`)
 
-## ⚙️ Configuração
+## ⚙️ Configuration
 
-Variáveis de ambiente disponíveis no arquivo `.env`:
+Environment variables available in the `.env` file:
 
-| Variável | Descrição | Padrão |
-|----------|-----------|--------|
-| `NEO4J_URI` | URI de conexão Neo4j | `bolt://127.0.0.1:7687` |
-| `NEO4J_USER` | Usuário Neo4j | `neo4j` |
-| `NEO4J_PASSWORD` | Senha Neo4j | `password` |
-| `DATA_DIR` | Diretório dos arquivos CSV | `./data` |
-| `BATCH_SIZE` | Tamanho do lote para ingestão | `5000` |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEO4J_URI` | Neo4j connection URI | `bolt://127.0.0.1:7687` |
+| `NEO4J_USER` | Neo4j username | `neo4j` |
+| `NEO4J_PASSWORD` | Neo4j password | `password` |
+| `DATA_DIR` | Directory for CSV files | `./data` |
+| `BATCH_SIZE` | Batch size for ingestion | `5000` |
 
-## 📝 Uso
+## 📝 Usage
 
-### Pipeline de Dados Atuais
+### Current Data Pipeline
 
-Para processar arquivos CSV de dados atuais:
+To process current data CSV files:
 
 ```bash
 python src/ingestion/pipeline.py
 ```
 
-Este pipeline processa os seguintes arquivos (em ordem):
-1. `Licitacao.csv` - Licitações e órgãos públicos
-2. `ItemLicitacao.csv` - Itens das licitações
-3. `ParticipantesLicitacao.csv` - Participantes e vencedores
-4. `CEIS.csv` - Sanções CEIS
-5. `CNEP.csv` - Sanções CNEP
+This pipeline processes the following files (in order):
+1. `Licitacao.csv` - Procurement processes and public agencies
+2. `ItemLicitacao.csv` - Procurement items
+3. `ParticipantesLicitacao.csv` - Participants and winners
+4. `CEIS.csv` - CEIS sanctions
+5. `CNEP.csv` - CNEP sanctions
 
-### Pipeline de Dados Históricos
+### Historical Data Pipeline
 
-Para processar arquivos CSV históricos (múltiplos arquivos por tipo):
+To process historical CSV files (multiple files per type):
 
 ```bash
 python src/ingestion/pipeline_historico.py
 ```
 
-Este pipeline:
-- Lê múltiplos arquivos CSV do diretório configurado
-- Processa em ordem cronológica
-- Executa ingestão sequencial estrita: licitações → itens → participantes
-- Inclui mecanismo de retry para deadlocks
-- Gera relatório final de ingestão
+This pipeline:
+- Reads multiple CSV files from the configured directory
+- Processes in chronological order
+- Executes strict sequential ingestion: procurement → items → participants
+- Includes retry mechanism for deadlocks
+- Generates final ingestion report
 
-**Nota**: O diretório de dados históricos deve ser configurado em `pipeline_historico.py` (linha 12).
+**Note**: The historical data directory must be configured in `pipeline_historico.py` (line 12).
 
-## 📊 Formato dos Arquivos CSV
+## 📊 CSV File Format
 
 ### Licitacao.csv
-- `Código UG`: Código do órgão público
-- `Nome UG`: Nome do órgão público
-- `Número Licitação`: Número da licitação
-- `Objeto`: Descrição do objeto
-- `Modalidade da Licitação`: Modalidade
-- `Data Abertura`: Data de abertura
+- `Código UG`: Public agency code
+- `Nome UG`: Public agency name
+- `Número Licitação`: Procurement number
+- `Objeto`: Object description
+- `Modalidade da Licitação`: Procurement modality
+- `Data Abertura`: Opening date
 
 ### ItemLicitacao.csv
-- `Número Licitação`: Número da licitação
-- `Código UG`: Código do órgão
-- `Código Item Compra`: Código do item
-- `Descrição`: Descrição do item
-- `Quantidade Item`: Quantidade
-- `Valor Estimado`: Valor estimado
+- `Número Licitação`: Procurement number
+- `Código UG`: Agency code
+- `Código Item Compra`: Item code
+- `Descrição`: Item description
+- `Quantidade Item`: Quantity
+- `Valor Estimado`: Estimated value
 
 ### ParticipantesLicitacao.csv
-- `Número Licitação`: Número da licitação
-- `Código UG`: Código do órgão
-- `Código Item Compra`: Código do item
-- `Código Participante`: CNPJ da empresa
-- `Nome Participante`: Razão social
-- `Flag Vencedor`: Indicador de vencedor (SIM/NÃO)
-- `Valor Item`: Valor homologado
+- `Número Licitação`: Procurement number
+- `Código UG`: Agency code
+- `Código Item Compra`: Item code
+- `Código Participante`: Company CNPJ
+- `Nome Participante`: Company name
+- `Flag Vencedor`: Winner indicator (YES/NO)
+- `Valor Item`: Homologated value
 
 ### CEIS.csv / CNEP.csv
-- `CPF OU CNPJ DO SANCIONADO`: Identificador
-- `CPF ou CNPJ do Sancionado`: CNPJ para relacionamento
-- `Fundamentação Legal`: Motivo da sanção
-- `Data Início Sanção`: Data início
-- `Data Fim Sanção`: Data fim
-- `Órgão Sancionador`: Órgão que aplicou a sanção
+- `CPF OU CNPJ DO SANCIONADO`: Identifier
+- `CPF ou CNPJ do Sancionado`: CNPJ for relationship
+- `Fundamentação Legal`: Sanction reason
+- `Data Início Sanção`: Start date
+- `Data Fim Sanção`: End date
+- `Órgão Sancionador`: Sanctioning agency
 
-## 🔧 Recursos Técnicos
+## 🔧 Technical Features
 
-- **Encoding**: Suporte automático para ISO-8859-1 e UTF-8-sig
-- **Batch Processing**: Processamento em lotes para otimizar memória
-- **Retry Logic**: Retry automático com backoff exponencial para deadlocks
-- **Constraints**: Constraints únicas em Neo4j para evitar duplicatas
-- **Logging**: Logs detalhados do processo de ingestão
+- **Encoding**: Automatic support for ISO-8859-1 and UTF-8-sig
+- **Batch Processing**: Batch processing to optimize memory
+- **Retry Logic**: Automatic retry with exponential backoff for deadlocks
+- **Constraints**: Unique constraints in Neo4j to avoid duplicates
+- **Logging**: Detailed logs of the ingestion process
 
-## 🛠️ Desenvolvimento
+## 🛠️ Development
 
-### Executar testes
+### Run tests
 ```bash
 pytest
 ```
 
-### Formatar código
+### Format code
 ```bash
 black src/
 ```
 
-## 📄 Licença
+## 📄 License
 
-[Adicionar informações de licença]
+[Add license information]
