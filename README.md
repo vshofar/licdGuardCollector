@@ -1,33 +1,24 @@
 # licdGuardCollector
 
-**licdGuardCollector** is a Python-based data collection and ingestion project focused on Brazilian **public procurement** data.
-
-The project implements ETL (Extract, Transform, Load) pipelines to process **public procurement** datasets, including bidding processes, procurement items, participating companies, and administrative sanctions.
-
-The collected information is structured and stored in a Neo4j graph database, enabling the exploration of relationships between public agencies, procurement processes, companies, and administrative sanctions.
-
-## Main Objectives
-
-- Consolidate **public procurement** information from different datasets.
-- Transform CSV data into a structured graph model.
-- Establish relationships between companies, public agencies, procurement processes, and administrative sanctions.
-- Provide a foundation for data analysis and relationship exploration.
+A Python-based ETL pipeline for collecting and processing Brazilian public procurement data and building a graph database in Neo4j.
 
 ## Data Source
 
-**Note:** The data used in this project is available from the [Brazilian government's open data repository](https://dadosabertos.compras.gov.br/).
+The pipeline processes CSV datasets obtained from the Brazilian government's open data repository.
 
-⚠️ **Warning:** The CSV files in the `data/` directory are **sample files only** used for validating the ingestion pipeline. For production use, ingestion must be performed with real data collected directly from the **public data source**.
+**Source:** [Brazilian Government Open Data Portal](https://dadosabertos.compras.gov.br/)
+
+Input files must be downloaded separately and stored in the directories configured through `DATA_DIR` and `HISTORIC_DATA_DIR`.
 
 ## Technology Stack
 
-- **Python 3.9+** – Data processing and ETL pipelines.
-- **Neo4j** – Graph database for storing and exploring relationships.
-- **Docker and Docker Compose** – Database environment management.
-- **Pandas** – Data manipulation and processing.
-- **python-dotenv** – Environment variable loading.
-- **tqdm** – Progress bars during data processing.
-- **CSV** – Input data format.
+- Python
+- Neo4j
+- Docker Compose
+- Pandas
+- python-dotenv
+- tqdm
+- CSV
 
 ## Project Structure
 
@@ -45,260 +36,143 @@ licdGuardCollector/
 └── requirements.txt
 ```
 
-### Main Components
-
-- `config.py`: Application configuration and environment variables.
-- `db.py`: Neo4j database connection and constraint setup.
-- `pipeline.py`: ETL pipeline for current procurement data.
-- `pipeline_historico.py`: ETL pipeline for historical procurement data.
-
-## Data Model
-
-The project uses Neo4j to represent **public procurement** information as a graph.
-
-### Nodes
-
-| Entity | Description |
-|---|---|
-| `OrgaoPublico` | Public agencies responsible for procurement processes |
-| `Licitacao` | **Public procurement** processes |
-| `Item` | Items included in procurement processes |
-| `Empresa` | Companies participating in procurement processes |
-| `Sancao` | Administrative sanctions recorded in CEIS and CNEP |
-
-### Relationships
-
-The graph model includes the following relationships:
-
-```text
-OrgaoPublico -[:REALIZOU]-> Licitacao
-
-Licitacao -[:TEM_ITEM]-> Item
-
-Empresa -[:PARTICIPOU]-> Item
-
-Empresa -[:VENCEU]-> Item
-
-Empresa -[:SOFREU_SANCAO]-> Sancao
-```
-
-This structure enables the exploration of connections between companies, public agencies, procurement processes, items, and administrative sanctions.
-
 ## Installation
 
-### Prerequisites
-
-Before installing the project, make sure you have:
-
-- Python 3.9 or later.
-- pip.
-- Docker.
-- Docker Compose.
-
-### 1. Clone the repository
+Clone the repository:
 
 ```bash
 git clone https://github.com/vshofar/licdGuardCollector.git
-
 cd licdGuardCollector
 ```
 
-### 2. Install Python dependencies
+Install the dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure environment variables
+## Configuration
 
-Create a `.env` file in the project root directory.
-
-Example:
+Create a `.env` file in the project root:
 
 ```env
 NEO4J_URI=bolt://127.0.0.1:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=CHANGE_ME
-DATA_DIR=./data
+
+DATA_DIR=/path/to/external/current/data
+HISTORIC_DATA_DIR=/path/to/external/historical/data
+
 BATCH_SIZE=5000
 ```
 
-Replace `CHANGE_ME` with a password of your choice.
+The data directories must be located outside the repository.
 
-Make sure the Neo4j credentials configured in `docker-compose.yaml` are consistent with the application configuration.
+The Neo4j credentials configured in `.env` must match those defined in `docker-compose.yaml`.
 
-**Important:** Do not commit `.env` files, passwords, or other secrets to the repository.
+Do not commit credentials or other sensitive information.
 
-### 4. Start Neo4j
+### Environment Variables
 
-Start the database using Docker Compose:
+| Variable | Description |
+|---|---|
+| `NEO4J_URI` | Neo4j connection URI |
+| `NEO4J_USER` | Neo4j username |
+| `NEO4J_PASSWORD` | Neo4j password |
+| `DATA_DIR` | Directory containing CSV files for the current pipeline |
+| `HISTORIC_DATA_DIR` | Directory containing historical CSV files |
+| `BATCH_SIZE` | Number of records processed per batch |
+
+## Neo4j
+
+Start the Neo4j service:
 
 ```bash
 docker compose up -d
 ```
 
-Check the container status:
+Check the service status:
 
 ```bash
 docker compose ps
 ```
 
-**Note:** Make sure the Neo4j authentication credentials configured in `docker-compose.yaml` match the credentials defined in the application's `.env` file.
+Access Neo4j Browser at:
 
-### 5. Access Neo4j Browser
-
-Once Neo4j is running, access:
-
-```text
 http://localhost:7474
-```
 
-Use the username and password configured for your Neo4j instance.
-
-## Configuration
-
-The application uses environment variables for database connectivity and data processing configuration.
-
-| Variable | Description | Default |
-|---|---|---|
-| `NEO4J_URI` | Neo4j connection URI | `bolt://127.0.0.1:7687` |
-| `NEO4J_USER` | Neo4j username | `neo4j` |
-| `NEO4J_PASSWORD` | Neo4j password | Must be configured |
-| `DATA_DIR` | Directory containing CSV input files for current pipeline | `./data` |
-| `HISTORIC_DATA_DIR` | Directory containing historical CSV files for historical pipeline | Must be configured for historical pipeline |
-| `BATCH_SIZE` | Number of records processed per batch | `5000` |
-
-The environment configuration should be consistent with the Neo4j Docker Compose configuration.
-
-## Usage
-
-The project provides two ETL pipelines.
+## Data Ingestion
 
 ### Current Data Pipeline
 
-The current data pipeline processes the following datasets:
+Run the current data ingestion pipeline:
 
 ```bash
 python src/ingestion/pipeline.py
 ```
 
-The pipeline processes the following files:
+The pipeline processes the following CSV files:
 
-1. `Licitacao.csv` – Procurement processes and public agencies.
-2. `ItemLicitacao.csv` – Procurement items.
-3. `ParticipantesLicitacao.csv` – Participating companies and winners.
-4. `CEIS.csv` – CEIS administrative sanctions.
-5. `CNEP.csv` – CNEP administrative sanctions.
+- `Licitacao.csv`
+- `ItemLicitacao.csv`
+- `ParticipantesLicitacao.csv`
+- `CEIS.csv`
+- `CNEP.csv`
+
+The files must be available in the directory configured through `DATA_DIR`.
 
 ### Historical Data Pipeline
 
-The historical pipeline supports multiple CSV files per dataset type.
-
-Run:
+Run the historical ingestion pipeline:
 
 ```bash
 python src/ingestion/pipeline_historico.py
 ```
 
-The historical pipeline includes:
+The historical data directory is configured through the `HISTORIC_DATA_DIR` environment variable.
 
-- Reading multiple CSV files from the configured directory.
-- Processing files in chronological order.
-- Sequential ingestion of procurement processes, items, and participants.
-- Retry mechanism for database deadlocks.
-- Final ingestion report generation.
+The historical pipeline processes multiple CSV files in chronological order, performs sequential ingestion, supports retries, and generates an ingestion report.
 
-**Note:** Before running the historical pipeline, make sure the historical data directory is correctly configured in `pipeline_historico.py`.
+## Data Model
 
-## CSV File Formats
-
-The ETL pipelines expect CSV files containing the following fields.
-
-### Licitacao.csv
-
-| Field | Description |
-|---|---|
-| `Código UG` | Public agency code |
-| `Nome UG` | Public agency name |
-| `Número Licitação` | Procurement number |
-| `Objeto` | Procurement object description |
-| `Modalidade da Licitação` | Procurement modality |
-| `Data Abertura` | Opening date |
-
-### ItemLicitacao.csv
-
-| Field | Description |
-|---|---|
-| `Número Licitação` | Procurement number |
-| `Código UG` | Public agency code |
-| `Código Item Compra` | Procurement item code |
-| `Descrição` | Item description |
-| `Quantidade Item` | Item quantity |
-| `Valor Estimado` | Estimated value |
-
-### ParticipantesLicitacao.csv
-
-| Field | Description |
-|---|---|
-| `Número Licitação` | Procurement number |
-| `Código UG` | Public agency code |
-| `Código Item Compra` | Procurement item code |
-| `Código Participante` | Company CNPJ |
-| `Nome Participante` | Company name |
-| `Flag Vencedor` | Winner indicator (YES/NO) |
-| `Valor Item` | Awarded item value |
-
-### CEIS.csv and CNEP.csv
-
-| Field | Description |
-|---|---|
-| `CPF OU CNPJ DO SANCIONADO` | Sanctioned entity identifier |
-| `CPF ou CNPJ do Sancionado` | CNPJ used for company relationships |
-| `Fundamentação Legal` | Legal basis for the sanction |
-| `Data Início Sanção` | Sanction start date |
-| `Data Fim Sanção` | Sanction end date |
-| `Órgão Sancionador` | Sanctioning agency |
+The project represents procurement-related entities and their relationships in Neo4j.
 
 ## Technical Features
 
-The project includes the following technical capabilities:
-
-- **Encoding Support:** Automatic support for ISO-8859-1 and UTF-8-sig encodings.
-- **Batch Processing:** Processes records in batches to optimize memory usage.
-- **Retry Logic:** Automatic retry with exponential backoff for database deadlocks.
-- **Database Constraints:** Unique constraints in Neo4j to help prevent duplicate records.
-- **Logging:** Detailed logs of the ingestion process.
-- **Historical Processing:** Sequential processing of historical procurement datasets.
+- CSV-based data ingestion.
+- Batch processing.
+- Neo4j graph database integration.
+- Current and historical data ingestion pipelines.
+- Environment-based configuration.
+- Historical ingestion reporting.
 
 ## Development
 
-### Tests
+Automated unit tests are not currently available.
 
-The project currently does not include automated unit tests.
-
-### Code Formatting
-
-Code formatting can be performed using Black:
+Install Black:
 
 ```bash
 pip install black
+```
+
+Format the source code:
+
+```bash
 black src/
 ```
 
 ## Future Improvements
 
-Potential areas for future development include:
-
-- Implementing automated unit and integration tests.
-- Improving data validation and error handling.
-- Enhancing ETL pipeline monitoring and reporting.
-- Improving historical data processing configuration.
-- Optimizing Neo4j queries and ingestion performance.
-- Enhancing graph schema to track the source document associated with each graph entity.
-- Expanding project documentation.
+- Implement automated unit and integration tests.
+- Add data validation and improved error handling.
+- Implement monitoring and ingestion reports.
+- Improve historical ingestion configuration.
+- Optimize Neo4j queries and data model performance.
+- Enhance graph schema to track the source document associated with each graph entity.
 
 ## License
 
-This project is licensed under the **MIT License**.
+This project is licensed under the MIT License.
 
 See the [LICENSE.md](LICENSE.md) file for details.
