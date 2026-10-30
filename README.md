@@ -33,12 +33,6 @@ The collected information is structured and stored in a Neo4j graph database, en
 
 ```text
 licdGuardCollector/
-├── data/
-│   ├── Licitacao.csv
-│   ├── ItemLicitacao.csv
-│   ├── ParticipantesLicitacao.csv
-│   ├── CEIS.csv
-│   └── CNEP.csv
 ├── src/
 │   └── ingestion/
 │       ├── config.py
@@ -57,7 +51,6 @@ licdGuardCollector/
 - `db.py`: Neo4j database connection and constraint setup.
 - `pipeline.py`: ETL pipeline for current procurement data.
 - `pipeline_historico.py`: ETL pipeline for historical procurement data.
-- `data/`: Input CSV datasets.
 
 ## Data Model
 
@@ -171,7 +164,8 @@ The application uses environment variables for database connectivity and data pr
 | `NEO4J_URI` | Neo4j connection URI | `bolt://127.0.0.1:7687` |
 | `NEO4J_USER` | Neo4j username | `neo4j` |
 | `NEO4J_PASSWORD` | Neo4j password | Must be configured |
-| `DATA_DIR` | Directory containing CSV input files | `./data` |
+| `DATA_DIR` | Directory containing CSV input files for current pipeline | `./data` |
+| `HISTORIC_DATA_DIR` | Directory containing historical CSV files for historical pipeline | Must be configured for historical pipeline |
 | `BATCH_SIZE` | Number of records processed per batch | `5000` |
 
 The environment configuration should be consistent with the Neo4j Docker Compose configuration.

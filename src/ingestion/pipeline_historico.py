@@ -5,11 +5,16 @@ import pandas as pd
 import logging
 from neo4j.exceptions import TransientError
 from ingestion.db import Neo4jConnector
-from ingestion.config import BATCH_SIZE
+from ingestion.config import BATCH_SIZE, HISTORIC_DATA_DIR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-HISTORIC_DATA_DIR = "/home/vbatista/estudo/agentes/licdGuard/collect/licitacao"
+# Valida se HISTORIC_DATA_DIR está configurado
+if not HISTORIC_DATA_DIR:
+    raise ValueError(
+        "HISTORIC_DATA_DIR não está configurado. "
+        "Defina a variável de ambiente HISTORIC_DATA_DIR no arquivo .env"
+    )
 
 
 class ETLPipelineHistoricoSequencial:
