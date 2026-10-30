@@ -1,17 +1,23 @@
 # licdGuardCollector
 
-**licdGuardCollector** is a Python-based data collection and ingestion project focused on Brazilian public procurement data.
+**licdGuardCollector** is a Python-based data collection and ingestion project focused on Brazilian **public procurement** data.
 
-The project implements ETL (Extract, Transform, Load) pipelines to process public procurement datasets, including bidding processes, procurement items, participating companies, and administrative sanctions.
+The project implements ETL (Extract, Transform, Load) pipelines to process **public procurement** datasets, including bidding processes, procurement items, participating companies, and administrative sanctions.
 
 The collected information is structured and stored in a Neo4j graph database, enabling the exploration of relationships between public agencies, procurement processes, companies, and administrative sanctions.
 
 ## Main Objectives
 
-- Consolidate public procurement information from different datasets.
+- Consolidate **public procurement** information from different datasets.
 - Transform CSV data into a structured graph model.
 - Establish relationships between companies, public agencies, procurement processes, and administrative sanctions.
 - Provide a foundation for data analysis and relationship exploration.
+
+## Data Source
+
+**Note:** The data used in this project is available from the **Brazilian government's open data repository** at **https://dadosabertos.compras.gov.br/**.
+
+⚠️ **Warning:** The CSV files in the `data/` directory are **sample files only** used for validating the ingestion pipeline. For production use, ingestion must be performed with real data collected directly from the **public data source**.
 
 ## Technology Stack
 
@@ -53,14 +59,14 @@ licdGuardCollector/
 
 ## Data Model
 
-The project uses Neo4j to represent public procurement information as a graph.
+The project uses Neo4j to represent **public procurement** information as a graph.
 
 ### Nodes
 
 | Entity | Description |
 |---|---|
 | `OrgaoPublico` | Public agencies responsible for procurement processes |
-| `Licitacao` | Public procurement processes |
+| `Licitacao` | **Public procurement** processes |
 | `Item` | Items included in procurement processes |
 | `Empresa` | Companies participating in procurement processes |
 | `Sancao` | Administrative sanctions recorded in CEIS and CNEP |
