@@ -15,7 +15,7 @@ The collected information is structured and stored in a Neo4j graph database, en
 
 ## Data Source
 
-**Note:** The data used in this project is available from the **Brazilian government's open data repository** at **https://dadosabertos.compras.gov.br/**.
+**Note:** The data used in this project is available from the [Brazilian government's open data repository](https://dadosabertos.compras.gov.br/).
 
 ⚠️ **Warning:** The CSV files in the `data/` directory are **sample files only** used for validating the ingestion pipeline. For production use, ingestion must be performed with real data collected directly from the **public data source**.
 
@@ -24,7 +24,9 @@ The collected information is structured and stored in a Neo4j graph database, en
 - **Python 3.9+** – Data processing and ETL pipelines.
 - **Neo4j** – Graph database for storing and exploring relationships.
 - **Docker and Docker Compose** – Database environment management.
-- **Pandas / Python libraries** – Data processing, according to project dependencies.
+- **Pandas** – Data manipulation and processing.
+- **python-dotenv** – Environment variable loading.
+- **tqdm** – Progress bars during data processing.
 - **CSV** – Input data format.
 
 ## Project Structure
@@ -148,6 +150,8 @@ Check the container status:
 docker compose ps
 ```
 
+**Note:** Make sure the Neo4j authentication credentials configured in `docker-compose.yaml` match the credentials defined in the application's `.env` file.
+
 ### 5. Access Neo4j Browser
 
 Once Neo4j is running, access:
@@ -210,7 +214,7 @@ The historical pipeline includes:
 - Retry mechanism for database deadlocks.
 - Final ingestion report generation.
 
-**Note:** The historical data directory must be configured in `pipeline_historico.py` before execution.
+**Note:** Before running the historical pipeline, make sure the historical data directory is correctly configured in `pipeline_historico.py`.
 
 ## CSV File Formats
 
@@ -274,15 +278,16 @@ The project includes the following technical capabilities:
 
 ## Development
 
-### Run Tests
+### Tests
+
+The project currently does not include automated unit tests.
+
+### Code Formatting
+
+Code formatting can be performed using Black:
 
 ```bash
-pytest
-```
-
-### Format Code
-
-```bash
+pip install black
 black src/
 ```
 
@@ -290,12 +295,13 @@ black src/
 
 Potential areas for future development include:
 
-- Expanding automated test coverage.
+- Implementing automated unit and integration tests.
 - Improving data validation and error handling.
 - Enhancing ETL pipeline monitoring and reporting.
 - Improving historical data processing configuration.
 - Optimizing Neo4j queries and ingestion performance.
-- Improving project documentation.
+- Enhancing graph schema to track the source document associated with each graph entity.
+- Expanding project documentation.
 
 ## License
 
