@@ -41,9 +41,6 @@ Thumbs.db
 # Logs
 *.log
 
-# Data files
-*.csv
-
 # Secrets
 *.pem
 *.key
