@@ -1,25 +1,20 @@
 import os
-import re
 import time
-import pandas as pd
 import logging
+from typing import Optional
 from neo4j.exceptions import TransientError
 from ingestion.db import Neo4jConnector
-from ingestion.config import BATCH_SIZE, HISTORIC_DATA_DIR
+from ingestion.historic_data_reader import HistoricDataReader
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Valida se HISTORIC_DATA_DIR está configurado
-if not HISTORIC_DATA_DIR:
-    raise ValueError(
-        "HISTORIC_DATA_DIR não está configurado. "
-        "Defina a variável de ambiente HISTORIC_DATA_DIR no arquivo .env"
-    )
-
 
 class ETLPipelineHistoricoSequencial:
-    def __init__(self, max_retries: int = 5):
+    def __init__(self, max_retries: int = 5, reader: Optional[HistoricDataReader] = None):
         self.max_retries = max_retries
+        # Leitura dos arquivos de entrada (HISTORIC_DATA_DIR) delegada ao HistoricDataReader.
+        # Criado antes da conexão com o Neo4j para falhar cedo caso o diretório não esteja configurado.
+        self.reader = reader or HistoricDataReader()
         # Setup inicial das constraints em uma conexão temporária
         db = Neo4jConnector()
         db.setup_constraints()
@@ -45,28 +40,11 @@ class ETLPipelineHistoricoSequencial:
                 raise e
 
     def process_csv_in_chunks(self, db: Neo4jConnector, filepath: str, cypher_query: str) -> tuple:
-        """Lê um arquivo CSV em chunks e executa a query Cypher com contadores de registros."""
-        if not os.path.exists(filepath):
-            logging.warning(f"Arquivo não encontrado: {filepath}. Pulando...")
-            return 0, 0
-
-        logging.info(f"Processando arquivo: {os.path.basename(filepath)}")
-
-        encoding = "iso-8859-1"
-        try:
-            chunks = pd.read_csv(filepath, sep=";", encoding=encoding, chunksize=BATCH_SIZE, dtype=str)
-            _ = next(chunks)
-            chunks = pd.read_csv(filepath, sep=";", encoding=encoding, chunksize=BATCH_SIZE, dtype=str)
-        except (UnicodeDecodeError, Exception):
-            encoding = "utf-8-sig"
-            chunks = pd.read_csv(filepath, sep=";", encoding=encoding, chunksize=BATCH_SIZE, dtype=str)
-
+        """Lê um arquivo CSV em chunks (via HistoricDataReader) e executa a query Cypher com contadores de registros."""
         total_registros_arquivo = 0
         falhas_registros_arquivo = 0
 
-        for chunk in chunks:
-            chunk = chunk.fillna("")
-            records = chunk.to_dict(orient="records")
+        for records in self.reader.ler_csv_em_chunks(filepath):
             num_records = len(records)
             total_registros_arquivo += num_records
 
@@ -77,29 +55,6 @@ class ETLPipelineHistoricoSequencial:
                 falhas_registros_arquivo += num_records
 
         return total_registros_arquivo, falhas_registros_arquivo
-
-    def get_arquivos_por_tipo(self):
-        """Retorna dicionário com listas de arquivos separados por tipo em ordem cronológica."""
-        csv_files = [f for f in os.listdir(HISTORIC_DATA_DIR) if f.endswith('.csv')]
-
-        licitacoes = []
-        itens = []
-        participantes = []
-
-        for arquivo in sorted(csv_files):
-            caminho_completo = os.path.join(HISTORIC_DATA_DIR, arquivo)
-            if re.search(r'_Licitação\.csv$', arquivo) and 'Item' not in arquivo and 'Participantes' not in arquivo:
-                licitacoes.append(caminho_completo)
-            elif re.search(r'_ItemLicitação\.csv$', arquivo):
-                itens.append(caminho_completo)
-            elif re.search(r'_ParticipantesLicitação\.csv$', arquivo):
-                participantes.append(caminho_completo)
-
-        return {
-            "licitacao": licitacoes,
-            "item_licitacao": itens,
-            "participante_licitacao": participantes
-        }
 
     def load_licitacao(self, db: Neo4jConnector, filepath: str) -> tuple:
         query = """
@@ -179,7 +134,7 @@ class ETLPipelineHistoricoSequencial:
         """Executa a ingestão sequencial estrita: licitacao -> item_licitacao -> participante_licitacao."""
         logging.info("Iniciando Pipeline de Ingestão Histórica Sequencial por Tipo...")
 
-        arquivos_por_tipo = self.get_arquivos_por_tipo()
+        arquivos_por_tipo = self.reader.listar_arquivos_por_tipo()
 
         totais_globais = {
             "total_registros": 0,
