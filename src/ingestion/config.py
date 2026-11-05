@@ -16,6 +16,6 @@ if not DATA_DIR or DATA_DIR == "./data":
     DATA_DIR = str(BASE_DIR / "data")
 
 # Diretório para dados históricos (opcional, usado pelo pipeline_historico.py)
-HISTORIC_DATA_DIR = os.getenv("HISTORIC_DATA_DIR")
+HISTORIC_DATA_DIR = os.getenv("HISTORIC_DATA_DIR", str(BASE_DIR / "input_sample"))
 
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "5000"))

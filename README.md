@@ -4,11 +4,19 @@ A Python-based ETL pipeline for collecting and processing Brazilian public procu
 
 ## Data Source
 
-The pipeline processes CSV datasets obtained from the Brazilian government's open data repository.
+### ⚠️ **IMPORTANT: DATA IS ANONYMIZED**
+
+**All sample data provided in the `input_sample/` directory is ANONYMIZED and contains NO real Personally Identifiable Information (PII).**
+
+The pipeline processes CSV datasets obtained from the Brazilian government's open data repository. The sample data included in this repository has been anonymized to protect privacy while maintaining the relational structure and data format for testing and development purposes.
 
 **Source:** [Brazilian Government Open Data Portal](https://dadosabertos.compras.gov.br/)
 
-Input files must be downloaded separately and stored in the directories configured through `DATA_DIR` and `HISTORIC_DATA_DIR`.
+### Data Directories
+
+- **`input_sample/`** - Contains anonymized sample CSV files for testing and development. This is the default directory for the historical pipeline (`HISTORIC_DATA_DIR`).
+- **`DATA_DIR`** - Directory for current data ingestion (configured via environment variable).
+- **`HISTORIC_DATA_DIR`** - Directory for historical data ingestion (defaults to `input_sample/` if not configured).
 
 ## Technology Stack
 
